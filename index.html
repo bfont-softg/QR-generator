@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Studio — Generador de Códigos QR</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23FF6B35' rx='12' width='100' height='100'/><rect fill='white' x='20' y='20' width='20' height='20'/><rect fill='white' x='60' y='20' width='20' height='20'/><rect fill='white' x='20' y='60' width='20' height='20'/><rect fill='%23FF6B35' x='25' y='25' width='10' height='10'/><rect fill='%23FF6B35' x='65' y='25' width='10' height='10'/><rect fill='%23FF6B35' x='25' y='65' width='10' height='10'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0C0C0E;
+      --surface: #161619;
+      --surface-hover: #1E1E22;
+      --border: #2A2A2F;
+      --text-primary: #FAFAFA;
+      --text-secondary: #8A8A8E;
+      --accent: #FF6B35;
+      --accent-glow: rgba(255, 107, 53, 0.15);
+      --accent-hover: #FF7F4D;
+      --error: #EF4444;
+      --error-glow: rgba(239, 68, 68, 0.15);
+      --success: #4ADE80;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 60px;
+      line-height: 1.5;
+    }
+
+    /* Noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.03;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    ::selection {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+      animation: fadeSlideUp 0.5s ease-out;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .logo span {
+      color: var(--accent);
+    }
+
+    .tagline {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      animation: fadeSlideUp 0.5s ease-out backwards;
+    }
+
+    .input-card {
+      margin-bottom: 20px;
+      animation-delay: 0.1s;
+    }
+
+    .output-card {
+      animation-delay: 0.2s;
+      display: none;
+    }
+
+    .output-card.visible {
+      display: block;
+    }
+
+    /* Input Section */
+    .input-group {
+      display: flex;
+      gap: 12px;
+    }
+
+    .input-wrapper {
+      flex: 1;
+      position: relative;
+    }
+
+    .url-input {
+      width: 100%;
+      height: 52px;
+      padding: 0 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .url-input::placeholder {
+      color: var(--text-secondary);
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .url-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .url-input.error {
+      border-color: var(--error);
+      box-shadow: 0 0 0 3px var(--error-glow);
+    }
+
+    .url-input.shake {
+      animation: shake 0.4s ease-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      height: 52px;
+      padding: 0 24px;
+      background: var(--accent);
+      color: var(--bg);
+      flex-shrink: 0;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+      filter: brightness(0.95);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      height: 44px;
+      padding: 0 18px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary:active {
+      transform: translateY(0);
+    }
+
+    .btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* QR Preview Section */
+    .qr-preview {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .qr-container {
+      width: 240px;
+      height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    .qr-container svg {
+      width: 100%;
+      height: 100%;
+      animation: qrAppear 0.4s ease-out;
+    }
+
+    @keyframes qrAppear {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    /* Placeholder state */
+    .qr-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-secondary);
+    }
+
+    .qr-placeholder-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      opacity: 0.3;
+    }
+
+    .qr-placeholder-cell {
+      width: 10px;
+      height: 10px;
+      background: var(--text-secondary);
+      border-radius: 2px;
+    }
+
+    .qr-placeholder-cell:nth-child(odd) {
+      opacity: 0.4;
+    }
+
+    .qr-placeholder-cell:nth-child(3n) {
+      opacity: 0.2;
+    }
+
+    .qr-placeholder-text {
+      font-size: 13px;
+    }
+
+    /* URL Display */
+    .url-display {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg);
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      width: 100%;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Download Actions */
+    .actions {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .actions .btn {
+      flex: 1;
+    }
+
+    /* Error Message */
+    .error-message {
+      color: var(--error);
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .error-message.visible {
+      display: block;
+      animation: fadeSlideUp 0.2s ease-out;
+    }
+
+    /* Footer Hint */
+    .hint {
+      text-align: center;
+      margin-top: 32px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      animation: fadeSlideUp 0.5s ease-out 0.3s backwards;
+    }
+
+    .hint svg {
+      width: 14px;
+      height: 14px;
+      vertical-align: -2px;
+      margin-right: 4px;
+    }
+
+    /* Animations */
+    @keyframes fadeSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      body {
+        padding: 32px 16px 48px;
+      }
+
+      header {
+        margin-bottom: 36px;
+      }
+
+      .logo {
+        font-size: 24px;
+      }
+
+      .card {
+        padding: 20px;
+      }
+
+      .input-group {
+        flex-direction: column;
+      }
+
+      .btn-primary {
+        width: 100%;
+      }
+
+      .qr-container {
+        width: 200px;
+        height: 200px;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+
+      .btn-secondary {
+        width: 100%;
+      }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="logo"><span>QR</span> Studio</h1>
+      <p class="tagline">Genera códigos QR en segundos</p>
+      <p class="tagline">by Fonti</p>
+    </header>
+
+    <div class="card input-card">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <input 
+            type="text" 
+            class="url-input" 
+            id="urlInput" 
+            placeholder="Pegá tu link acá..."
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </div>
+        <button class="btn btn-primary" id="generateBtn" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Generar
+        </button>
+      </div>
+      <p class="error-message" id="errorMessage">No parece una URL válida</p>
+    </div>
+
+    <div class="card output-card" id="outputCard">
+      <div class="qr-preview">
+        <div class="qr-container" id="qrContainer">
+          <div class="qr-placeholder" id="qrPlaceholder">
+            <div class="qr-placeholder-grid">
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+              <div class="qr-placeholder-cell"></div>
+            </div>
+            <span class="qr-placeholder-text">Tu QR va a aparecer acá</span>
+          </div>
+          <div id="qrCode" style="display: none;"></div>
+        </div>
+        <div class="url-display" id="urlDisplay"></div>
+        <div class="actions">
+          <button class="btn btn-secondary" id="downloadPng">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            PNG
+          </button>
+          <button class="btn btn-secondary" id="downloadSvg">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            SVG
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <p class="hint">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
+      Presioná Enter o hacé click en Generar
+    </p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script>
+    const urlInput = document.getElementById('urlInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const outputCard = document.getElementById('outputCard');
+    const qrContainer = document.getElementById('qrCode');
+    const qrPlaceholder = document.getElementById('qrPlaceholder');
+    const urlDisplay = document.getElementById('urlDisplay');
+    const errorMessage = document.getElementById('errorMessage');
+    const downloadPng = document.getElementById('downloadPng');
+    const downloadSvg = document.getElementById('downloadSvg');
+
+    let currentUrl = '';
+    let currentSvgElement = null;
+
+    // URL Validation
+    function isValidUrl(string) {
+      if (!string) return false;
+      
+      // Add protocol if missing
+      let urlToCheck = string;
+      if (!/^https?:\/\//i.test(string)) {
+        urlToCheck = 'https://' + string;
+      }
+      
+      try {
+        const url = new URL(urlToCheck);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    }
+
+    function normalizeUrl(string) {
+      if (!string) return '';
+      if (!/^https?:\/\//i.test(string)) {
+        return 'https://' + string;
+      }
+      return string;
+    }
+
+    // Enable/disable generate button
+    urlInput.addEventListener('input', () => {
+      const hasValue = urlInput.value.trim().length > 0;
+      generateBtn.disabled = !hasValue;
+      
+      // Clear error state
+      urlInput.classList.remove('error');
+      errorMessage.classList.remove('visible');
+    });
+
+    // Generate QR on Enter
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !generateBtn.disabled) {
+        generateQR();
+      }
+    });
+
+    // Generate on button click
+    generateBtn.addEventListener('click', generateQR);
+
+    function generateQR() {
+      const input = urlInput.value.trim();
+      
+      if (!input) {
+        urlInput.classList.add('shake');
+        urlInput.placeholder = 'Tenés que poner un link';
+        setTimeout(() => {
+          urlInput.classList.remove('shake');
+          urlInput.placeholder = 'Pegá tu link acá...';
+        }, 400);
+        return;
+      }
+
+      if (!isValidUrl(input)) {
+        urlInput.classList.add('error');
+        errorMessage.classList.add('visible');
+        return;
+      }
+
+      currentUrl = normalizeUrl(input);
+      
+      // Generate QR code
+      const qr = qrcode(0, 'M');
+      qr.addData(currentUrl);
+      qr.make();
+
+      // Create SVG
+      const moduleCount = qr.getModuleCount();
+      const cellSize = Math.floor(240 / moduleCount);
+      const svgSize = moduleCount * cellSize;
+
+      let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgSize} ${svgSize}" width="1024" height="1024">`;
+      svgContent += `<rect width="${svgSize}" height="${svgSize}" fill="#FFFFFF"/>`;
+
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) {
+            svgContent += `<rect x="${col * cellSize}" y="${row * cellSize}" width="${cellSize}" height="${cellSize}" fill="#000000"/>`;
+          }
+        }
+      }
+
+      svgContent += '</svg>';
+
+      // Create SVG element for display
+      const parser = new DOMParser();
+      const svgDoc = parser.parseFromString(svgContent, 'image/svg+xml');
+      currentSvgElement = svgDoc.documentElement;
+
+      // Update display
+      qrPlaceholder.style.display = 'none';
+      qrContainer.style.display = 'flex';
+      qrContainer.innerHTML = '';
+      
+      // Clone SVG for display (smaller version)
+      const displaySvg = currentSvgElement.cloneNode(true);
+      displaySvg.setAttribute('width', '240');
+      displaySvg.setAttribute('height', '240');
+      qrContainer.appendChild(displaySvg);
+
+      // Show output card
+      outputCard.classList.add('visible');
+      
+      // Update URL display
+      urlDisplay.textContent = currentUrl;
+      urlDisplay.title = currentUrl;
+
+      // Scroll to output
+      outputCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Download PNG
+    downloadPng.addEventListener('click', () => {
+      if (!currentSvgElement) return;
+
+      const canvas = document.createElement('canvas');
+      const size = 1024;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Draw white background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, size, size);
+
+      // Convert SVG to image
+      const svgData = new XMLSerializer().serializeToString(currentSvgElement);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+
+        const pngUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = `qr-code-${Date.now()}.png`;
+        link.href = pngUrl;
+        link.click();
+      };
+      img.src = url;
+    });
+
+    // Download SVG
+    downloadSvg.addEventListener('click', () => {
+      if (!currentSvgElement) return;
+
+      const svgData = new XMLSerializer().serializeToString(currentSvgElement);
+      const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.download = `qr-code-${Date.now()}.svg`;
+      link.href = url;
+      link.click();
+
+      URL.revokeObjectURL(url);
+    });
+
+    // Auto-focus on load
+    window.addEventListener('load', () => {
+      urlInput.focus();
+    });
+  </script>
+</body>
+</html>
